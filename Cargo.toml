@@ -1,0 +1,16 @@
+[package]
+name = "youshallnotpass"
+version = "0.1.0"
+edition = "2021"
+authors = [
+    "Ihor Kalnytskyi <ihor@kalnytskyi.com>",
+    "Roman Podoliaka  <roman.podoliaka@gmail.com>",
+]
+description = "Simple crate providing rate limiting functionality."
+readme = "README.md"
+documentation = "https://github.com/ikalnytskyi/youshallnotpass"
+homepage = "https://github.com/ikalnytskyi/youshallnotpass"
+repository = "https://github.com/ikalnytskyi/youshallnotpass"
+license = "MIT"
+keywords = ["rate-limiter", "token-bucket"] 
+categories = ["algorithms", "data-structures"] 
