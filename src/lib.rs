@@ -17,7 +17,7 @@ impl TokenBucket {
             period,
             tokens: capacity,
             last_replenished_at: None,
-            clock: Box::new(|| Instant::now()),
+            clock: Box::new(Instant::now),
         }
     }
 
@@ -32,7 +32,7 @@ impl TokenBucket {
 
     pub fn consume_weight(&mut self, weight: usize) -> bool {
         let now = (self.clock)();
-        let last_replenished_at = self.last_replenished_at.unwrap_or(now.clone());
+        let last_replenished_at = self.last_replenished_at.unwrap_or(now);
         let tokens_to_replenish = (now.duration_since(last_replenished_at).as_secs_f64()
             / self.period.as_secs_f64()
             * self.capacity as f64) as usize;
