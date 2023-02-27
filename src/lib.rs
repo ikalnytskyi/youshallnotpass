@@ -41,9 +41,15 @@ impl TokenBucket {
         dbg!(last_replenished_at);
         dbg!(now.duration_since(last_replenished_at));
 
-        // last_replenished_at стає новіше ніж now o_O
-        self.last_replenished_at =
-            Some(last_replenished_at + self.period.saturating_mul(tokens_to_replenish as u32));
+        // In the period of time since last_replenished_at a fractional number of tokens might have
+        // been generated. We store an integer number of tokens, though, so we need to adjust
+        // last_replenished_at accordingly by how much time it took to generate "full" tokens that
+        // we are adding to the bucket, rather than adjusting it to "now", which would have thrown
+        // away the fractional part of replenished tokens forever.
+        let replenish_interval = Duration::from_secs_f64(
+            tokens_to_replenish as f64 / self.capacity as f64 * self.period.as_secs_f64(),
+        );
+        self.last_replenished_at = Some(last_replenished_at + replenish_interval);
         self.tokens = std::cmp::min(
             self.tokens.saturating_add(tokens_to_replenish),
             self.capacity,
