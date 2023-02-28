@@ -160,4 +160,43 @@ mod tests {
         assert_eq!(bucket.consume(), true);
         assert_eq!(bucket.consume(), false);
     }
+
+    #[test]
+    fn consume_weight_over_time() {
+        let now = Rc::new(RefCell::new(Instant::now()));
+        let now_moved = now.clone();
+
+        let mut bucket = TokenBucket::new(3, Duration::from_secs(1))
+            .with_timer(Box::new(move || *now_moved.borrow()));
+
+        // consume all tokens at once
+        assert_eq!(bucket.consume_weight(3), true);
+        assert_eq!(bucket.consume_weight(1), false);
+
+        // sequentially consume tokens
+        *now.borrow_mut() += Duration::from_secs(1);
+        assert_eq!(bucket.consume_weight(2), true);
+        assert_eq!(bucket.consume_weight(2), false);
+        assert_eq!(bucket.consume_weight(1), true);
+        assert_eq!(bucket.consume_weight(1), false);
+
+        // two tokens are replenished
+        *now.borrow_mut() += Duration::from_millis(700);
+        assert_eq!(bucket.consume_weight(1), true);
+        assert_eq!(bucket.consume_weight(1), true);
+        assert_eq!(bucket.consume_weight(1), false);
+    }
+
+    #[test]
+    fn consume_and_consume_weight_shared_state() {
+        let now = Rc::new(RefCell::new(Instant::now()));
+        let now_moved = now.clone();
+
+        let mut bucket = TokenBucket::new(3, Duration::from_secs(1))
+            .with_timer(Box::new(move || *now_moved.borrow()));
+
+        assert_eq!(bucket.consume_weight(2), true);
+        assert_eq!(bucket.consume(), true);
+        assert_eq!(bucket.consume_weight(1), false);
+    }
 }
