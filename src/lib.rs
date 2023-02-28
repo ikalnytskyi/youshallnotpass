@@ -1,7 +1,5 @@
 use std::time::{Duration, Instant};
 
-// QUESTIONS:
-// * Do we want to separate capacity from replenish rate?
 pub struct TokenBucket {
     capacity: usize,
     period: Duration,
@@ -36,10 +34,6 @@ impl TokenBucket {
         let tokens_to_replenish = (now.duration_since(last_replenished_at).as_secs_f64()
             / self.period.as_secs_f64()
             * self.capacity as f64) as usize;
-
-        dbg!(now);
-        dbg!(last_replenished_at);
-        dbg!(now.duration_since(last_replenished_at));
 
         // In the period of time since last_replenished_at a fractional number of tokens might have
         // been generated. We store an integer number of tokens, though, so we need to adjust
