@@ -2,17 +2,17 @@ use std::time::{Duration, Instant};
 
 pub struct TokenBucket {
     capacity: usize,
-    period: Duration,
+    interval: Duration,
     tokens: usize,
     last_replenished_at: Option<Instant>,
     clock: Box<dyn Fn() -> Instant>,
 }
 
 impl TokenBucket {
-    pub fn new(capacity: usize, period: Duration) -> Self {
+    pub fn new(capacity: usize, interval: Duration) -> Self {
         Self {
             capacity,
-            period,
+            interval,
             tokens: capacity,
             last_replenished_at: None,
             clock: Box::new(Instant::now),
@@ -32,7 +32,7 @@ impl TokenBucket {
         let now = (self.clock)();
         let last_replenished_at = self.last_replenished_at.unwrap_or(now);
         let tokens_to_replenish = (now.duration_since(last_replenished_at).as_secs_f64()
-            / self.period.as_secs_f64()
+            / self.interval.as_secs_f64()
             * self.capacity as f64) as usize;
 
         // In the period of time since last_replenished_at a fractional number of tokens might have
@@ -41,7 +41,7 @@ impl TokenBucket {
         // we are adding to the bucket, rather than adjusting it to "now", which would have thrown
         // away the fractional part of replenished tokens forever.
         let replenish_interval = Duration::from_secs_f64(
-            tokens_to_replenish as f64 / self.capacity as f64 * self.period.as_secs_f64(),
+            tokens_to_replenish as f64 / self.capacity as f64 * self.interval.as_secs_f64(),
         );
         self.last_replenished_at = Some(last_replenished_at + replenish_interval);
         self.tokens = std::cmp::min(
