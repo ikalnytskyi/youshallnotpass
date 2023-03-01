@@ -1,20 +1,18 @@
 use std::time::{Duration, Instant};
 
 pub struct TokenBucket {
-    limit: usize,
     interval: Duration,
-    tokens: usize,
-    last_replenished_at: Option<Instant>,
+    time_per_token: u64,
+    last_token_used_at: Option<Instant>,
     clock: Box<dyn Fn() -> Instant>,
 }
 
 impl TokenBucket {
     pub fn new(limit: usize, interval: Duration) -> Self {
         Self {
-            limit,
             interval,
-            tokens: limit,
-            last_replenished_at: None,
+            time_per_token: interval.as_nanos() as u64 / limit as u64,
+            last_token_used_at: None,
             clock: Box::new(Instant::now),
         }
     }
@@ -24,30 +22,19 @@ impl TokenBucket {
         self
     }
 
-    pub fn consume(&mut self, weight: usize) -> bool {
+    pub fn consume(&mut self, tokens: usize) -> bool {
         let now = (self.clock)();
-        let last_replenished_at = self.last_replenished_at.unwrap_or(now);
-        let tokens_to_replenish = (now.duration_since(last_replenished_at).as_secs_f64()
-            / self.interval.as_secs_f64()
-            * self.limit as f64) as usize;
+        let replenish_delay = Duration::from_nanos(tokens as u64 * self.time_per_token);
+        let interval_started_at = now.checked_sub(self.interval).unwrap_or(now);
+        let last_token_used_at = self.last_token_used_at.unwrap_or(interval_started_at);
 
-        // In the period of time since last_replenished_at a fractional number of tokens might have
-        // been generated. We store an integer number of tokens, though, so we need to adjust
-        // last_replenished_at accordingly by how much time it took to generate "full" tokens that
-        // we are adding to the bucket, rather than adjusting it to "now", which would have thrown
-        // away the fractional part of replenished tokens forever.
-        let replenish_interval = Duration::from_secs_f64(
-            tokens_to_replenish as f64 / self.limit as f64 * self.interval.as_secs_f64(),
-        );
-        self.last_replenished_at = Some(last_replenished_at + replenish_interval);
-        self.tokens = std::cmp::min(self.tokens.saturating_add(tokens_to_replenish), self.limit);
-
-        match self.tokens.checked_sub(weight) {
-            Some(new_tokens) => {
-                self.tokens = new_tokens;
-                true
-            }
-            None => false,
+        let required_time =
+            std::cmp::max(interval_started_at, last_token_used_at) + replenish_delay;
+        if required_time > now {
+            false
+        } else {
+            self.last_token_used_at = Some(required_time);
+            true
         }
     }
 }
