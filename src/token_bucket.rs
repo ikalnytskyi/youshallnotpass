@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 pub struct TokenBucket {
-    capacity: usize,
+    limit: usize,
     interval: Duration,
     tokens: usize,
     last_replenished_at: Option<Instant>,
@@ -9,11 +9,11 @@ pub struct TokenBucket {
 }
 
 impl TokenBucket {
-    pub fn new(capacity: usize, interval: Duration) -> Self {
+    pub fn new(limit: usize, interval: Duration) -> Self {
         Self {
-            capacity,
+            limit,
             interval,
-            tokens: capacity,
+            tokens: limit,
             last_replenished_at: None,
             clock: Box::new(Instant::now),
         }
@@ -33,7 +33,7 @@ impl TokenBucket {
         let last_replenished_at = self.last_replenished_at.unwrap_or(now);
         let tokens_to_replenish = (now.duration_since(last_replenished_at).as_secs_f64()
             / self.interval.as_secs_f64()
-            * self.capacity as f64) as usize;
+            * self.limit as f64) as usize;
 
         // In the period of time since last_replenished_at a fractional number of tokens might have
         // been generated. We store an integer number of tokens, though, so we need to adjust
@@ -41,13 +41,10 @@ impl TokenBucket {
         // we are adding to the bucket, rather than adjusting it to "now", which would have thrown
         // away the fractional part of replenished tokens forever.
         let replenish_interval = Duration::from_secs_f64(
-            tokens_to_replenish as f64 / self.capacity as f64 * self.interval.as_secs_f64(),
+            tokens_to_replenish as f64 / self.limit as f64 * self.interval.as_secs_f64(),
         );
         self.last_replenished_at = Some(last_replenished_at + replenish_interval);
-        self.tokens = std::cmp::min(
-            self.tokens.saturating_add(tokens_to_replenish),
-            self.capacity,
-        );
+        self.tokens = std::cmp::min(self.tokens.saturating_add(tokens_to_replenish), self.limit);
 
         match self.tokens.checked_sub(weight) {
             Some(new_tokens) => {
