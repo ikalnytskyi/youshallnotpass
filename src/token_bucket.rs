@@ -24,11 +24,7 @@ impl TokenBucket {
         self
     }
 
-    pub fn consume(&mut self) -> bool {
-        self.consume_weight(1)
-    }
-
-    pub fn consume_weight(&mut self, weight: usize) -> bool {
+    pub fn consume(&mut self, weight: usize) -> bool {
         let now = (self.clock)();
         let last_replenished_at = self.last_replenished_at.unwrap_or(now);
         let tokens_to_replenish = (now.duration_since(last_replenished_at).as_secs_f64()
@@ -71,12 +67,12 @@ mod tests {
         let mut bucket = TokenBucket::new(1, Duration::from_secs(1))
             .with_timer(Box::new(move || *now_moved.borrow()));
 
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), false);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), false);
 
         *now.borrow_mut() += Duration::from_secs(1);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), false);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), false);
     }
 
     #[test]
@@ -87,16 +83,16 @@ mod tests {
         let mut bucket = TokenBucket::new(3, Duration::from_secs(1))
             .with_timer(Box::new(move || *now_moved.borrow()));
 
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), false);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), false);
 
         *now.borrow_mut() += Duration::from_secs(1);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), false);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), false);
     }
 
     #[test]
@@ -107,12 +103,15 @@ mod tests {
         let mut bucket = TokenBucket::new(1, Duration::from_secs(3))
             .with_timer(Box::new(move || *now_moved.borrow()));
 
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), false);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), false);
+
+        *now.borrow_mut() += Duration::from_secs(2);
+        assert_eq!(bucket.consume(1), false);
 
         *now.borrow_mut() += Duration::from_secs(3);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), false);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), false);
     }
 
     #[test]
@@ -126,40 +125,40 @@ mod tests {
 
         // consume first token
         *now.borrow_mut() = t0;
-        assert_eq!(bucket.consume(), true);
+        assert_eq!(bucket.consume(1), true);
 
         // consume second token
         *now.borrow_mut() = t0 + Duration::from_millis(50);
-        assert_eq!(bucket.consume(), true);
+        assert_eq!(bucket.consume(1), true);
 
         // consume third & fourth tokens
         *now.borrow_mut() = t0 + Duration::from_millis(150);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), true);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), true);
 
         // ensure we are out of tokens
-        assert_eq!(bucket.consume(), false);
+        assert_eq!(bucket.consume(1), false);
 
         // one token is not yet replenished
         *now.borrow_mut() = t0 + Duration::from_millis(249);
-        assert_eq!(bucket.consume(), false);
+        assert_eq!(bucket.consume(1), false);
 
         // one token is replenished
         *now.borrow_mut() = t0 + Duration::from_millis(250);
-        assert_eq!(bucket.consume(), true);
+        assert_eq!(bucket.consume(1), true);
 
         // ensure we are out of tokens again
-        assert_eq!(bucket.consume(), false);
+        assert_eq!(bucket.consume(1), false);
 
         // two tokens are replenished
         *now.borrow_mut() = t0 + Duration::from_millis(750);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume(), false);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), false);
     }
 
     #[test]
-    fn consume_weight_over_time() {
+    fn weight_gt_one() {
         let now = Rc::new(RefCell::new(Instant::now()));
         let now_moved = now.clone();
 
@@ -167,33 +166,20 @@ mod tests {
             .with_timer(Box::new(move || *now_moved.borrow()));
 
         // consume all tokens at once
-        assert_eq!(bucket.consume_weight(3), true);
-        assert_eq!(bucket.consume_weight(1), false);
+        assert_eq!(bucket.consume(3), true);
+        assert_eq!(bucket.consume(1), false);
 
         // sequentially consume tokens
         *now.borrow_mut() += Duration::from_secs(1);
-        assert_eq!(bucket.consume_weight(2), true);
-        assert_eq!(bucket.consume_weight(2), false);
-        assert_eq!(bucket.consume_weight(1), true);
-        assert_eq!(bucket.consume_weight(1), false);
+        assert_eq!(bucket.consume(2), true);
+        assert_eq!(bucket.consume(2), false);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), false);
 
         // two tokens are replenished
         *now.borrow_mut() += Duration::from_millis(700);
-        assert_eq!(bucket.consume_weight(1), true);
-        assert_eq!(bucket.consume_weight(1), true);
-        assert_eq!(bucket.consume_weight(1), false);
-    }
-
-    #[test]
-    fn consume_and_consume_weight_shared_state() {
-        let now = Rc::new(RefCell::new(Instant::now()));
-        let now_moved = now.clone();
-
-        let mut bucket = TokenBucket::new(3, Duration::from_secs(1))
-            .with_timer(Box::new(move || *now_moved.borrow()));
-
-        assert_eq!(bucket.consume_weight(2), true);
-        assert_eq!(bucket.consume(), true);
-        assert_eq!(bucket.consume_weight(1), false);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), false);
     }
 }
