@@ -1,24 +1,24 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-pub struct TokenBucket {
+pub struct TokenBucket<'a> {
     time_per_token: usize,
     interval: Duration,
     last_replenished_at: Mutex<Option<Instant>>,
-    clock: Box<dyn Fn() -> Instant + Sync>,
+    clock: &'a (dyn Fn() -> Instant + Sync),
 }
 
-impl TokenBucket {
+impl<'a> TokenBucket<'a> {
     pub fn new(limit: usize, interval: Duration) -> Self {
-        TokenBucket::with_timer(limit, interval, Box::new(Instant::now))
+        TokenBucket::with_timer(limit, interval, &Instant::now)
     }
 
-    pub fn with_timer(
+    pub(crate) fn with_timer(
         limit: usize,
         interval: Duration,
-        clock: Box<dyn Fn() -> Instant + Sync>,
+        clock: &'a (dyn Fn() -> Instant + Sync),
     ) -> Self {
-        assert!(limit > 0);
+        assert!(limit > 0, "limit must be a positive integer");
 
         TokenBucket {
             time_per_token: interval.as_nanos() as usize / limit,
@@ -51,18 +51,23 @@ impl TokenBucket {
 mod tests {
     use super::*;
 
-    use std::sync::{Arc, Mutex};
+    use std::sync::Mutex;
+
+    #[test]
+    fn new() {
+        let bucket = TokenBucket::new(3, Duration::from_secs(60));
+
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), true);
+        assert_eq!(bucket.consume(1), false);
+    }
 
     #[test]
     fn capacity_is_one() {
-        let now = Arc::new(Mutex::new(Instant::now()));
-        let now_moved = now.clone();
-
-        let bucket = TokenBucket::with_timer(
-            1,
-            Duration::from_secs(1),
-            Box::new(move || *now_moved.lock().unwrap()),
-        );
+        let now = Mutex::new(Instant::now());
+        let clock = || *now.lock().unwrap();
+        let bucket = TokenBucket::with_timer(1, Duration::from_secs(1), &clock);
 
         assert_eq!(bucket.consume(1), true);
         assert_eq!(bucket.consume(1), false);
@@ -74,14 +79,9 @@ mod tests {
 
     #[test]
     fn capacity_gt_one() {
-        let now = Arc::new(Mutex::new(Instant::now()));
-        let now_moved = now.clone();
-
-        let bucket = TokenBucket::with_timer(
-            3,
-            Duration::from_secs(1),
-            Box::new(move || *now_moved.lock().unwrap()),
-        );
+        let now = Mutex::new(Instant::now());
+        let clock = || *now.lock().unwrap();
+        let bucket = TokenBucket::with_timer(3, Duration::from_secs(1), &clock);
 
         assert_eq!(bucket.consume(1), true);
         assert_eq!(bucket.consume(1), true);
@@ -97,14 +97,9 @@ mod tests {
 
     #[test]
     fn period_gt_one() {
-        let now = Arc::new(Mutex::new(Instant::now()));
-        let now_moved = now.clone();
-
-        let bucket = TokenBucket::with_timer(
-            1,
-            Duration::from_secs(3),
-            Box::new(move || *now_moved.lock().unwrap()),
-        );
+        let now = Mutex::new(Instant::now());
+        let clock = || *now.lock().unwrap();
+        let bucket = TokenBucket::with_timer(1, Duration::from_secs(3), &clock);
 
         assert_eq!(bucket.consume(1), true);
         assert_eq!(bucket.consume(1), false);
@@ -120,14 +115,9 @@ mod tests {
     #[test]
     fn consume_over_time() {
         let t0 = Instant::now();
-        let now = Arc::new(Mutex::new(t0.clone()));
-        let now_moved = now.clone();
-
-        let bucket = TokenBucket::with_timer(
-            4,
-            Duration::from_secs(1),
-            Box::new(move || *now_moved.lock().unwrap()),
-        );
+        let now = Mutex::new(t0);
+        let clock = || *now.lock().unwrap();
+        let bucket = TokenBucket::with_timer(4, Duration::from_secs(1), &clock);
 
         // consume first token
         *now.lock().unwrap() = t0;
@@ -165,14 +155,9 @@ mod tests {
 
     #[test]
     fn weight_gt_one() {
-        let now = Arc::new(Mutex::new(Instant::now()));
-        let now_moved = now.clone();
-
-        let bucket = TokenBucket::with_timer(
-            3,
-            Duration::from_secs(1),
-            Box::new(move || *now_moved.lock().unwrap()),
-        );
+        let now = Mutex::new(Instant::now());
+        let clock = || *now.lock().unwrap();
+        let bucket = TokenBucket::with_timer(3, Duration::from_secs(1), &clock);
 
         // consume all tokens at once
         assert_eq!(bucket.consume(3), true);
