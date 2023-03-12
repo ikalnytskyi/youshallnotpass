@@ -1,3 +1,4 @@
+mod error;
 mod rate_limiter;
 mod token_bucket;
 
