@@ -59,7 +59,39 @@ mod tests {
         assert_eq!(limiter.consume("A", 1), Ok(()));
         assert_eq!(limiter.consume("A", 1), Ok(()));
         // we don't mock time in this test case, so checking the retry-after delay would be unreliable
-        assert!(limiter.consume("A", 1).is_err());
+        assert!(matches!(limiter.consume("A", 1), Err(Error::RetryAfter(_))));
+    }
+
+    #[test]
+    fn blocked_limit() {
+        let mut limiter = RateLimiter::new();
+
+        // requests are alowed when no limit is configured
+        assert_eq!(limiter.consume("A", 1), Ok(()));
+        assert_eq!(limiter.consume("B", 1), Ok(()));
+
+        // using a limit of 0 blocks the given entity
+        limiter.set_limit("A", 0, Duration::from_secs(60));
+
+        assert_eq!(limiter.consume("A", 1), Err(Error::Blocked));
+        assert_eq!(limiter.consume("A", 1), Err(Error::Blocked));
+        assert_eq!(limiter.consume("A", 1), Err(Error::Blocked));
+    }
+
+    #[test]
+    fn blocked_duration() {
+        let mut limiter = RateLimiter::new();
+
+        // requests are alowed when no limit is configured
+        assert_eq!(limiter.consume("A", 1), Ok(()));
+        assert_eq!(limiter.consume("B", 1), Ok(()));
+
+        // using an interval of 0 blocks the given entity
+        limiter.set_limit("A", 42, Duration::from_secs(0));
+
+        assert_eq!(limiter.consume("A", 1), Err(Error::Blocked));
+        assert_eq!(limiter.consume("A", 1), Err(Error::Blocked));
+        assert_eq!(limiter.consume("A", 1), Err(Error::Blocked));
     }
 
     #[test]
