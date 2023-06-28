@@ -1,14 +1,14 @@
 <p align="center">
   <img
     width="350"
-    src="https://raw.githubusercontent.com/ikalnytskyi/youshallnotpass/readme/assets/logo.jpg"
+    src="https://raw.githubusercontent.com/ikalnytskyi/youshallnotpass/main/assets/logo.jpg"
     alt="YouShallNotPass — the rate limiter"
   />
 </p>
 
 <a href="https://savelife.in.ua/en/donate-en/">
   <img
-    src="https://raw.githubusercontent.com/ikalnytskyi/youshallnotpass/readme/assets/banner.svg"
+    src="https://raw.githubusercontent.com/ikalnytskyi/youshallnotpass/main/assets/banner.svg"
     alt="Save Lives in Ukraine"
   />
 </a>
